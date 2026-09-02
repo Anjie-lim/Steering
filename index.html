@@ -496,6 +496,7 @@
             synth.cancel(); 
             const scenario = scenarios[currentLevel];
             const isCorrect = (choice === scenario.correct);
+            const itemScore = isCorrect ? 10 : 0;
             
             userAnswers.push({
                 level: currentLevel + 1,
@@ -503,7 +504,7 @@
                 userAnswer: choice,
                 correctAnswer: scenario.correct,
                 isCorrect: isCorrect,
-                points_awarded: isCorrect ? 10 : 0
+                points_awarded: itemScore
             });
 
             const titleEl = getEl('feedback-title');
@@ -519,7 +520,7 @@
             }
 
             let correctText = scenario.correct === 'Same' ? "About the Same" : `Response ${scenario.correct} is Better`;
-            contentEl.innerHTML = `<p class="mb-3"><strong class="text-white">Correct Output: ${correctText}</strong></p><p class="text-sm">${scenario.rationale}</p>`;
+            contentEl.innerHTML = `<p class="mb-1"><strong class="text-white">Your Answer: Response ${choice} (${itemScore}/10 pts)</strong></p><p class="mb-3"><strong class="text-white">Correct Output: ${correctText}</strong></p><p class="text-sm">${scenario.rationale}</p>`;
 
             if (currentLevel === scenarios.length - 1) {
                 getEl('next-btn-text').innerText = "VIEW FINAL DIAGNOSTICS";
