@@ -6,6 +6,7 @@
     <title>Voice Steer Auditor // The Construct</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    
     <style>
         :root {
             --matrix-green: #0f0;
@@ -21,7 +22,7 @@
             background-color: var(--bg-color);
             color: var(--matrix-green);
             font-family: 'Share Tech Mono', monospace;
-            overflow: hidden; /* Hide scrollbars for the canvas effect */
+            overflow: hidden;
         }
 
         #matrix-canvas {
@@ -31,7 +32,7 @@
             width: 100%;
             height: 100%;
             z-index: 0;
-            opacity: 0.4; /* Increased opacity for more prominent rain */
+            opacity: 0.4;
         }
 
         .crt::before {
@@ -176,15 +177,6 @@
     <div class="content-wrapper">
         
         <div id="screen-login" class="terminal-box relative">
-            <button type="button" onclick="toggleSettings()" class="absolute top-4 right-4 text-green-900 hover:text-green-500 transition-colors text-2xl z-20 focus:outline-none" title="Configure Uplink">⚙</button>
-            
-            <div id="settings-panel" class="hidden mb-6 p-4 border border-green-800 bg-black relative z-10">
-                <label class="block mb-2 text-xs text-green-600">APPS SCRIPT UPLINK URL (WEBHOOK)</label>
-                <input type="text" id="config-url" class="mb-2 text-sm" placeholder="https://script.google.com/macros/s/..." autocomplete="off">
-                <button type="button" onclick="saveSettings()" class="matrix-btn text-sm py-2">SAVE CONFIG TO MEMORY</button>
-                <p id="config-status" class="text-xs text-green-500 mt-2 hidden">UPLINK SAVED.</p>
-            </div>
-
             <h1 class="text-3xl font-bold mb-4 glow-text">Voice Steer Auditor // V2</h1>
             <p class="mb-6 text-sm">Wake up, rater...<br>The Construct awaits your evaluation of 10 Audio Uplinks.</p>
             
@@ -240,9 +232,7 @@
 
         <div id="screen-feedback" class="terminal-box hidden">
             <h2 id="feedback-title" class="text-2xl font-bold mb-4 glow-text">ANALYSIS COMPLETE</h2>
-            <div id="feedback-content" class="mb-6 text-lg border-l-4 border-green-500 pl-4 py-3 bg-green-900 bg-opacity-20 leading-relaxed">
-                <!-- Rationale dynamically inserted here -->
-            </div>
+            <div id="feedback-content" class="mb-6 text-lg border-l-4 border-green-500 pl-4 py-3 bg-green-900 bg-opacity-20 leading-relaxed"></div>
             <button class="matrix-btn border-2 border-green-500" onclick="nextLevel()">
                 <span class="font-bold" id="next-btn-text">PROCEED TO NEXT UPLINK</span>
                 <span>&gt;&gt;</span>
@@ -253,11 +243,11 @@
             <h1 class="text-4xl font-bold mb-2 glow-text">SIMULATION CONCLUDED</h1>
             <div class="my-8 py-6 border-y border-green-800">
                 <h2 class="text-xl mb-2 text-green-600">FINAL SCORE:</h2>
-                <div class="text-6xl font-bold glow-text text-white"><span id="final-score"></span><span class="text-3xl text-green-500">/100</span></div>
+                <div class="text-6xl font-bold glow-text text-white"><span id="final-score">0</span><span class="text-3xl text-green-500">/100</span></div>
             </div>
             
             <p class="mb-2 text-left text-xs text-green-600">COMPILED TARGET DATA FOR TRANSMISSION:</p>
-            <div class="bg-black border border-green-800 p-4 mb-6 text-left text-xs overflow-x-auto h-40 custom-scrollbar">
+            <div class="bg-black border border-green-800 p-4 mb-6 text-left text-xs overflow-x-auto h-40">
                 <pre id="payload-preview" class="text-green-500"></pre>
             </div>
 
@@ -275,10 +265,9 @@
 
     <script>
         /**
-         * CONFIGURATION: APP SCRIPT INTEGRATION
-         * The URL is now configurable via the UI gear icon on the login screen.
+         * REPLACE THE URL BELOW WITH YOUR DEPLOYED GOOGLE APPS SCRIPT WEB APP URL
          */
-        let currentAppsScriptUrl = ""; 
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec"; 
         
         let userData = { name: "", email: "" };
         let currentLevel = 0;
@@ -291,147 +280,118 @@
 
         const scenarios = [
             {
-                // Level 1
                 axis: "speaking-rate",
                 label: "speaking-rate: slow",
                 instruction: "Speak very slowly and deliberately, taking your time.",
                 textA: "Take a deep breath. Focus on the moment. Everything will be okay.",
-                rateA: 0.5, pitchA: 1.0, // Slow - Pass
+                rateA: 0.5, pitchA: 1.0,
                 textB: "Take a deep breath. Focus on the moment. Everything will be okay.",
-                rateB: 1.0, pitchB: 1.0, // Normal - Fail
+                rateB: 1.0, pitchB: 1.0,
                 correct: "A",
-                rationale: "Response A reduced its speaking rate significantly (~0.5x), matching the 'slow' steer request perfectly. Response B remained at a default conversational speed."
+                rationale: "Response A reduced its speaking rate significantly (~0.5x), matching the 'slow' steer request perfectly."
             },
             {
-                // Level 2
                 axis: "expressiveness",
                 label: "expressiveness: flat",
                 instruction: "Speak in a completely flat, robotic, and emotionless tone.",
                 textA: "I have calculated the probability of success. It is precisely 42 percent.",
-                rateA: 1.0, pitchA: 1.3, // Expressive - Fail
+                rateA: 1.0, pitchA: 1.3,
                 textB: "I have calculated the probability of success. It is precisely 42 percent.",
-                rateB: 0.9, pitchB: 0.1, // Flat/Monotone - Pass
+                rateB: 0.9, pitchB: 0.1,
                 correct: "B",
-                rationale: "Response B dropped the pitch modulation significantly to simulate a 'flat' and robotic delivery. Response A maintained too much melodic variation."
+                rationale: "Response B dropped the pitch modulation significantly to simulate a 'flat' delivery."
             },
             {
-                // Level 3
                 axis: "verbosity",
                 label: "verbosity: extreme-terse",
                 instruction: "Provide only the most critical fact with zero elaboration.",
-                textA: "Well, if you look at the sky, you will notice that the reason it appears blue is because of a phenomenon called Rayleigh scattering, which scatters sunlight in all directions.",
-                rateA: 1.0, pitchA: 1.0, // Verbose - Fail
+                textA: "Well, if you look at the sky, you will notice that the reason it appears blue is because of Rayleigh scattering.",
+                rateA: 1.0, pitchA: 1.0,
                 textB: "The sky is blue due to Rayleigh scattering.",
-                rateB: 1.0, pitchB: 1.0, // Terse - Pass
+                rateB: 1.0, pitchB: 1.0,
                 correct: "B",
-                rationale: "Verbosity is judged by text length and detail. Response B was highly concise (extreme-terse), whereas A was overly conversational and verbose."
+                rationale: "Response B was highly concise (extreme-terse), whereas A was overly conversational."
             },
             {
-                // Level 4
                 axis: "formality",
                 label: "formality: chatty-friend",
                 instruction: "Speak casually, warmly, and informally.",
                 textA: "Hey there! How's it going? So glad you could make it today, it's awesome to see you!",
-                rateA: 1.1, pitchA: 1.2, // Casual/Warm - Pass
+                rateA: 1.1, pitchA: 1.2,
                 textB: "Greetings. I acknowledge your arrival at this location. It is satisfactory.",
-                rateB: 0.9, pitchB: 0.8, // Stiff/Formal - Fail
+                rateB: 0.9, pitchB: 0.8,
                 correct: "A",
-                rationale: "Response A used casual phrasing, slang, and a slightly brighter delivery appropriate for a 'chatty friend'. Response B was highly formal, robotic, and stiff."
+                rationale: "Response A used casual phrasing and delivery appropriate for a 'chatty friend'."
             },
             {
-                // Level 5
                 axis: "speaking-rate",
                 label: "speaking-rate: fast",
                 instruction: "Deliver the response quickly and with urgency.",
                 textA: "The system is experiencing a critical failure. Please evacuate the premises immediately.",
-                rateA: 1.0, pitchA: 1.0, // Normal - Fail
+                rateA: 1.0, pitchA: 1.0,
                 textB: "The system is experiencing a critical failure. Please evacuate the premises immediately.",
-                rateB: 1.7, pitchB: 1.0, // Fast - Pass
+                rateB: 1.7, pitchB: 1.0,
                 correct: "B",
-                rationale: "Response B correctly accelerated the speaking rate to fulfill the 'fast' steer, while A remained at default speed."
+                rationale: "Response B correctly accelerated the speaking rate to fulfill the 'fast' steer."
             },
             {
-                // Level 6
                 axis: "verbosity",
                 label: "verbosity: balanced",
-                instruction: "Give the user the context needed to understand the answer, then stop before the detail becomes excessive.",
-                textA: "Most people give up on resolutions because they set vague goals without a clear plan, and rely solely on motivation which fades quickly.",
-                rateA: 1.0, pitchA: 1.0, // Balanced
-                textB: "People quit resolutions because their goals are too broad, like saying 'get fit', without a roadmap. Also, motivation drops over time, and without habit tracking, it's easy to just stop trying.",
-                rateB: 1.0, pitchB: 1.0, // Balanced
+                instruction: "Give the user the context needed to understand the answer, then stop.",
+                textA: "Most people give up on resolutions because they set vague goals without a clear plan.",
+                rateA: 1.0, pitchA: 1.0,
+                textB: "People quit resolutions because their goals are too broad without a roadmap.",
+                rateB: 1.0, pitchB: 1.0,
                 correct: "Same",
-                rationale: "Both responses hit the 'balanced' sweet spot perfectly. They provide enough detail to answer the prompt without becoming overly terse or excessively long-winded."
+                rationale: "Both responses hit the 'balanced' sweet spot perfectly without becoming verbose."
             },
             {
-                // Level 7
                 axis: "expressiveness",
                 label: "expressiveness: theatrical",
                 instruction: "Deliver the lines with high drama, extreme emotion, and theatrical flair.",
                 textA: "To be, or not to be. That is the question.",
-                rateA: 0.8, pitchA: 1.8, // Theatrical/High pitch variance - Pass
+                rateA: 0.8, pitchA: 1.8,
                 textB: "To be, or not to be. That is the question.",
-                rateB: 1.0, pitchB: 1.0, // Normal - Fail
+                rateB: 1.0, pitchB: 1.0,
                 correct: "A",
-                rationale: "Response A used significant pitch modulation and a slightly drawn-out pacing to add drama, fitting the 'theatrical' steer. Response B read the line normally."
+                rationale: "Response A used significant pitch variation and dramatic pacing."
             },
             {
-                // Level 8
                 axis: "formality",
                 label: "formality: executive-assistant",
                 instruction: "Speak in a highly professional, polite, and polished tone.",
                 textA: "Your meeting has been scheduled for 3 PM. I have attached the agenda for your review.",
-                rateA: 1.0, pitchA: 1.0, // Professional - Pass
+                rateA: 1.0, pitchA: 1.0,
                 textB: "Okay cool, I threw that meeting on your cal for 3. Check out the notes I slapped in there.",
-                rateB: 1.1, pitchB: 1.1, // Too casual - Fail
+                rateB: 1.1, pitchB: 1.1,
                 correct: "A",
-                rationale: "Response A utilized professional vocabulary and a polished, steady delivery suitable for an executive assistant. Response B was far too casual and slang-heavy."
+                rationale: "Response A utilized professional vocabulary suitable for an executive assistant."
             },
             {
-                // Level 9
                 axis: "speaking-rate",
                 label: "speaking-rate: very-slow",
                 instruction: "Speak at an agonizingly slow pace. Drag out the words.",
                 textA: "I am walking as slow as I possibly can.",
-                rateA: 0.8, pitchA: 1.0, // Slow, but not very slow - Fail
+                rateA: 0.8, pitchA: 1.0,
                 textB: "I am walking as slow as I possibly can.",
-                rateB: 0.2, pitchB: 1.0, // Very slow - Pass
+                rateB: 0.2, pitchB: 1.0,
                 correct: "B",
-                rationale: "Response B dropped the rate down to the extreme low end (~0.2x), accurately capturing 'very-slow'. Response A was only slightly slower than normal, under-delivering the steer."
+                rationale: "Response B dropped the rate down to the extreme low end (~0.2x)."
             },
             {
-                // Level 10
                 axis: "verbosity",
                 label: "verbosity: detailed",
                 instruction: "Provide a comprehensive, exhaustive, and highly detailed answer.",
-                textA: "Photosynthesis is the process by which green plants and some other organisms use sunlight to synthesize foods from carbon dioxide and water. It generally involves the green pigment chlorophyll and generates oxygen as a byproduct.",
-                rateA: 1.0, pitchA: 1.0, // Detailed - Pass
+                textA: "Photosynthesis is the process by which green plants use sunlight to synthesize foods from carbon dioxide and water, generating oxygen as a byproduct.",
+                rateA: 1.0, pitchA: 1.0,
                 textB: "Plants use sunlight to make their own food in a process called photosynthesis.",
-                rateB: 1.0, pitchB: 1.0, // Terse - Fail
+                rateB: 1.0, pitchB: 1.0,
                 correct: "A",
-                rationale: "Response A provided a much deeper, more scientific breakdown of the topic, perfectly matching the 'detailed' requirement. Response B was far too concise."
+                rationale: "Response A provided a much deeper breakdown matching the 'detailed' requirement."
             }
         ];
 
         function getEl(id) { return document.getElementById(id); }
-        
-        function toggleSettings() {
-            const panel = getEl('settings-panel');
-            panel.classList.toggle('hidden');
-        }
-
-        function saveSettings() {
-            const urlInput = getEl('config-url').value.trim();
-            if (urlInput) {
-                currentAppsScriptUrl = urlInput;
-                getEl('config-status').classList.remove('hidden');
-                setTimeout(() => {
-                    getEl('settings-panel').classList.add('hidden');
-                    getEl('config-status').classList.add('hidden');
-                    getEl('config-url').value = '';
-                    getEl('config-url').placeholder = 'URL CONFIGURED';
-                }, 1000);
-            }
-        }
 
         function hideAll() {
             getEl('screen-login').classList.add('hidden');
@@ -445,14 +405,12 @@
             userData.name = getEl('user-name').value;
             userData.email = getEl('user-email').value;
             
-            // Unlock audio context (Crucial for browsers)
             if(synth.getVoices().length === 0) {
                 let silentUtter = new SpeechSynthesisUtterance("");
                 silentUtter.volume = 0;
                 synth.speak(silentUtter);
             }
 
-            // Start ambient Matrix background audio
             initMatrixAudio();
             getEl('audio-toggle').classList.remove('hidden');
 
@@ -466,24 +424,19 @@
         function loadLevel() {
             hasPlayedA = false;
             hasPlayedB = false;
-            synth.cancel(); // Stop any lingering audio
+            synth.cancel();
             
-            // Reset UI states
             getEl('btn-play-a').classList.remove('played');
             getEl('btn-play-b').classList.remove('played');
             getEl('status-a').innerText = '▶';
             getEl('status-b').innerText = '▶';
             
-            // Lock answer buttons
-            const evalZone = getEl('evaluation-zone');
-            evalZone.classList.add('disabled-zone');
+            getEl('evaluation-zone').classList.add('disabled-zone');
 
-            // Update Headers
             getEl('level-indicator').innerText = `UPLINK ${String(currentLevel + 1).padStart(2, '0')} / 10`;
             getEl('score-indicator').innerText = `SCORE: ${score.toString().padStart(3, '0')}`;
             getEl('axis-badge').innerText = scenarios[currentLevel].label;
 
-            // Typewriter effect for instructions
             clearInterval(typeWriterInterval);
             const textElement = getEl('typewriter-text');
             textElement.innerHTML = '';
@@ -501,7 +454,7 @@
         }
 
         function playAudio(choice) {
-            synth.cancel(); // Stop current audio
+            synth.cancel();
             const scenario = scenarios[currentLevel];
             
             if (choice === 'A') {
@@ -509,7 +462,6 @@
                 currentUtterance.rate = scenario.rateA;
                 currentUtterance.pitch = scenario.pitchA;
                 
-                // Set voice if available to ensure consistency
                 const voices = synth.getVoices();
                 if(voices.length > 0) currentUtterance.voice = voices[0];
 
@@ -529,19 +481,14 @@
                 getEl('status-b').innerText = '✓';
             }
 
-            // Detect when audio finishes to unlock buttons if both have played
             currentUtterance.onend = function() { checkUnlock(); };
-            
             synth.speak(currentUtterance);
-            
-            // Fallback unlock check just in case onend fails firing
             checkUnlock();
         }
 
         function checkUnlock() {
             if (hasPlayedA && hasPlayedB) {
-                const evalZone = getEl('evaluation-zone');
-                evalZone.classList.remove('disabled-zone');
+                getEl('evaluation-zone').classList.remove('disabled-zone');
             }
         }
 
@@ -574,7 +521,6 @@
             let correctText = scenario.correct === 'Same' ? "About the Same" : `Response ${scenario.correct} is Better`;
             contentEl.innerHTML = `<p class="mb-3"><strong class="text-white">Correct Output: ${correctText}</strong></p><p class="text-sm">${scenario.rationale}</p>`;
 
-            // Update button text if it's the last level
             if (currentLevel === scenarios.length - 1) {
                 getEl('next-btn-text').innerText = "VIEW FINAL DIAGNOSTICS";
             }
@@ -599,7 +545,6 @@
             getEl('screen-results').classList.remove('hidden');
             getEl('final-score').innerText = score;
 
-            // Generate payload for Apps Script
             const payload = {
                 timestamp: new Date().toISOString(),
                 rater_name: userData.name,
@@ -620,22 +565,19 @@
             btn.disabled = true;
             btn.innerHTML = `<span class="font-bold text-lg text-green-700">TRANSMITTING...</span><span class="animate-spin text-xl text-green-700">◓</span>`;
             
-            if (!currentAppsScriptUrl) {
+            if (APPS_SCRIPT_URL === "https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec" || !APPS_SCRIPT_URL) {
                 btn.disabled = false;
                 btn.innerHTML = `<span class="font-bold text-lg text-red-500">TRANSMISSION FAILED - NO UPLINK URL</span><span class="text-xl text-red-500">⚠</span>`;
-                console.warn("No Apps Script URL configured. Please configure it via the gear icon on the login screen.");
                 return;
             }
 
             try {
-                // LIVE FETCH BLOCK FOR GOOGLE APPS SCRIPT
-                const response = await fetch(currentAppsScriptUrl, {
+                const response = await fetch(APPS_SCRIPT_URL, {
                     method: 'POST',
-                    mode: 'no-cors', // Essential for Apps Script without complex preflight config
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify(window.currentPayload)
                 });
-                // Note: no-cors means we won't get a readable response back, assume success if no throw
+                
                 btn.classList.add('hidden');
                 status.classList.remove('hidden');
             } catch(e) {
@@ -665,7 +607,6 @@
         }
 
         const drawMatrix = () => {
-            // Semi-transparent black background to create the fade effect
             ctx.fillStyle = 'rgba(0, 5, 0, 0.08)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -674,11 +615,10 @@
             for (let i = 0; i < rainDrops.length; i++) {
                 const text = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
                 
-                // Make the leading character white, the rest matrix green
                 if (Math.random() > 0.95) {
-                    ctx.fillStyle = '#FFF'; // White glint
+                    ctx.fillStyle = '#FFF';
                 } else {
-                    ctx.fillStyle = '#0F0'; // Standard green
+                    ctx.fillStyle = '#0F0';
                 }
 
                 ctx.fillText(text, i * fontSize, rainDrops[i] * fontSize);
@@ -699,32 +639,24 @@
         });
 
         setInterval(drawMatrix, 40);
-        
-        // Ensure voices are loaded (some browsers load them asynchronously)
-        speechSynthesis.onvoiceschanged = () => {
-            console.log("TTS Voices loaded.");
-        };
 
-        // --- AMBIENT MATRIX AUDIO SYNTHESIZER ---
         let bgmCtx, masterGain, audioEnabled = true;
 
         function initMatrixAudio() {
-            if (bgmCtx) return; // Prevent multiple contexts
+            if (bgmCtx) return;
             
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             bgmCtx = new AudioContext();
             masterGain = bgmCtx.createGain();
-            masterGain.gain.value = 0.08; // Keep it low to not overpower TTS
+            masterGain.gain.value = 0.08;
             masterGain.connect(bgmCtx.destination);
 
-            // Deep background drone (Sine wave)
             const osc1 = bgmCtx.createOscillator();
             osc1.type = 'sine';
-            osc1.frequency.value = 55; // Low frequency hum
+            osc1.frequency.value = 55;
             osc1.connect(masterGain);
             osc1.start();
 
-            // Modulated cyber grit (Sawtooth + Lowpass Filter)
             const osc2 = bgmCtx.createOscillator();
             osc2.type = 'sawtooth';
             osc2.frequency.value = 110;
@@ -733,10 +665,9 @@
             filter.type = 'lowpass';
             filter.frequency.value = 400;
 
-            // LFO to slowly sweep the filter, creating a breathing effect
             const lfo = bgmCtx.createOscillator();
             lfo.type = 'sine';
-            lfo.frequency.value = 0.1; // Very slow sweep
+            lfo.frequency.value = 0.1;
             const lfoGain = bgmCtx.createGain();
             lfoGain.gain.value = 200;
             
@@ -747,30 +678,6 @@
             osc2.connect(filter);
             filter.connect(masterGain);
             osc2.start();
-            
-            // Random "data processing" blips
-            setInterval(() => {
-                if(audioEnabled && bgmCtx.state === 'running') {
-                    playDataBlip();
-                }
-            }, 2500);
-        }
-        
-        function playDataBlip() {
-            if(!bgmCtx) return;
-            const blipOsc = bgmCtx.createOscillator();
-            blipOsc.type = 'square';
-            blipOsc.frequency.setValueAtTime(Math.random() * 600 + 400, bgmCtx.currentTime); // Random high pitch
-            
-            const blipGain = bgmCtx.createGain();
-            blipGain.gain.setValueAtTime(0, bgmCtx.currentTime);
-            blipGain.gain.linearRampToValueAtTime(0.02, bgmCtx.currentTime + 0.05); // Quick attack
-            blipGain.gain.exponentialRampToValueAtTime(0.001, bgmCtx.currentTime + 0.2); // Quick decay
-            
-            blipOsc.connect(blipGain);
-            blipGain.connect(masterGain);
-            blipOsc.start();
-            blipOsc.stop(bgmCtx.currentTime + 0.3);
         }
 
         function toggleMatrixAudio() {
@@ -785,7 +692,6 @@
                 btn.innerText = '[ AUDIO: OFF ]';
             }
         }
-
     </script>
 </body>
 </html>
