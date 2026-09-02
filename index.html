@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Steer Auditor // The Construct</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --matrix-green: #0f0;
+            --matrix-dark-green: #003300;
+            --bg-color: #050505;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            color: var(--matrix-green);
+            font-family: 'Share Tech Mono', monospace;
+            overflow: hidden; /* Hide scrollbars for the canvas effect */
+        }
+
+        #matrix-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            opacity: 0.4; /* Increased opacity for more prominent rain */
+        }
+
+        .crt::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 2;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+
+        .content-wrapper {
+            position: relative;
+            z-index: 10;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .terminal-box {
+            background: rgba(0, 15, 0, 0.85);
+            border: 1px solid var(--matrix-green);
+            box-shadow: 0 0 10px var(--matrix-green), inset 0 0 10px var(--matrix-dark-green);
+            padding: 30px;
+            width: 100%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            border-radius: 4px;
+        }
+
+        .glow-text {
+            text-shadow: 0 0 5px var(--matrix-green);
+        }
+        
+        .blinking-cursor::after {
+            content: '_';
+            animation: blink 1s step-end infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        input[type="text"], input[type="email"] {
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid var(--matrix-green);
+            color: var(--matrix-green);
+            font-family: inherit;
+            font-size: 1.2rem;
+            width: 100%;
+            padding: 5px;
+            margin-bottom: 20px;
+            outline: none;
+        }
+        input:focus {
+            box-shadow: 0 1px 5px var(--matrix-green);
+        }
+
+        .matrix-btn {
+            background: rgba(0, 20, 0, 0.5);
+            color: var(--matrix-green);
+            border: 1px solid var(--matrix-green);
+            padding: 12px 20px;
+            font-family: inherit;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            width: 100%;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .matrix-btn:hover:not(:disabled) {
+            background: var(--matrix-green);
+            color: black;
+            box-shadow: 0 0 15px var(--matrix-green);
+        }
+
+        .matrix-btn:disabled {
+            border-color: #335533;
+            color: #335533;
+            cursor: not-allowed;
+            text-shadow: none;
+            box-shadow: none;
+            background: transparent;
+        }
+
+        .matrix-btn.played {
+            border-color: #00aa00;
+            background: rgba(0, 60, 0, 0.6);
+            color: #00ff00;
+        }
+
+        .hidden { display: none !important; }
+        .disabled-zone { opacity: 0.4; pointer-events: none; }
+        
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-color); }
+        ::-webkit-scrollbar-thumb { background: var(--matrix-green); }
+        ::-webkit-scrollbar-thumb:hover { background: #00cc00; }
+        
+        #audio-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 50;
+            color: var(--matrix-green);
+            font-size: 0.9rem;
+            cursor: pointer;
+            border: 1px solid var(--matrix-green);
+            padding: 5px 10px;
+            background: rgba(0, 15, 0, 0.8);
+            transition: all 0.3s;
+        }
+        #audio-toggle:hover {
+            background: var(--matrix-green);
+            color: black;
+        }
+    </style>
+</head>
+<body class="crt">
+
+    <canvas id="matrix-canvas"></canvas>
+    
+    <!-- Audio Control Toggle -->
+    <button id="audio-toggle" onclick="toggleMatrixAudio()" class="hidden">[ AUDIO: ON ]</button>
+
+    <div class="content-wrapper">
+        
+        <div id="screen-login" class="terminal-box relative">
+            <button type="button" onclick="toggleSettings()" class="absolute top-4 right-4 text-green-900 hover:text-green-500 transition-colors text-2xl z-20 focus:outline-none" title="Configure Uplink">⚙</button>
+            
+            <div id="settings-panel" class="hidden mb-6 p-4 border border-green-800 bg-black relative z-10">
+                <label class="block mb-2 text-xs text-green-600">APPS SCRIPT UPLINK URL (WEBHOOK)</label>
+                <input type="text" id="config-url" class="mb-2 text-sm" placeholder="https://script.google.com/macros/s/..." autocomplete="off">
+                <button type="button" onclick="saveSettings()" class="matrix-btn text-sm py-2">SAVE CONFIG TO MEMORY</button>
+                <p id="config-status" class="text-xs text-green-500 mt-2 hidden">UPLINK SAVED.</p>
+            </div>
+
+            <h1 class="text-3xl font-bold mb-4 glow-text">Voice Steer Auditor // V2</h1>
+            <p class="mb-6 text-sm">Wake up, rater...<br>The Construct awaits your evaluation of 10 Audio Uplinks.</p>
+            
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <label class="block mb-2 text-sm text-green-600">IDENTIFICATION [NAME]</label>
+                <input type="text" id="user-name" required autocomplete="off" placeholder="Neo">
+                
+                <label class="block mb-2 text-sm text-green-600">COMMUNICATION LINK [EMAIL]</label>
+                <input type="email" id="user-email" required autocomplete="off" placeholder="neo@zion.net">
+                
+                <button type="submit" class="matrix-btn mt-6 border-2 border-green-500">
+                    <span class="font-bold">ENTER THE CONSTRUCT</span>
+                    <span>&gt;&gt;</span>
+                </button>
+            </form>
+        </div>
+
+        <div id="screen-game" class="terminal-box hidden">
+            <div class="flex justify-between items-center border-b border-green-800 pb-2 mb-4">
+                <span id="level-indicator" class="text-xl glow-text">UPLINK 01 / 10</span>
+                <span id="score-indicator" class="text-lg">SCORE: 000</span>
+            </div>
+
+            <div class="mb-4">
+                <span id="axis-badge" class="inline-block bg-green-900 text-green-100 text-xs px-2 py-1 rounded mb-2 border border-green-500"></span>
+            </div>
+
+            <div id="mission-briefing" class="mb-6 min-h-[80px]">
+                <h2 class="text-xs text-green-600 mb-1">SYSTEM INSTRUCTION</h2>
+                <div class="text-lg glow-text blinking-cursor" id="typewriter-text"></div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <button id="btn-play-a" class="matrix-btn h-16" onclick="playAudio('A')">
+                    <span>[ DECRYPT AUDIO A ]</span>
+                    <span id="status-a">▶</span>
+                </button>
+                <button id="btn-play-b" class="matrix-btn h-16" onclick="playAudio('B')">
+                    <span>[ DECRYPT AUDIO B ]</span>
+                    <span id="status-b">▶</span>
+                </button>
+            </div>
+
+            <div id="evaluation-zone" class="disabled-zone transition-opacity duration-500">
+                <p class="mb-3 text-center text-sm text-green-500">SELECT THE RESPONSE THAT BEST FOLLOWS THE STEER:</p>
+                <div class="space-y-2">
+                    <button class="matrix-btn" onclick="submitAnswer('A')">Response A is Better</button>
+                    <button class="matrix-btn" onclick="submitAnswer('B')">Response B is Better</button>
+                    <button class="matrix-btn" onclick="submitAnswer('Same')">About the Same</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="screen-feedback" class="terminal-box hidden">
+            <h2 id="feedback-title" class="text-2xl font-bold mb-4 glow-text">ANALYSIS COMPLETE</h2>
+            <div id="feedback-content" class="mb-6 text-lg border-l-4 border-green-500 pl-4 py-3 bg-green-900 bg-opacity-20 leading-relaxed">
+                <!-- Rationale dynamically inserted here -->
+            </div>
+            <button class="matrix-btn border-2 border-green-500" onclick="nextLevel()">
+                <span class="font-bold" id="next-btn-text">PROCEED TO NEXT UPLINK</span>
+                <span>&gt;&gt;</span>
+            </button>
+        </div>
+
+        <div id="screen-results" class="terminal-box hidden text-center">
+            <h1 class="text-4xl font-bold mb-2 glow-text">SIMULATION CONCLUDED</h1>
+            <div class="my-8 py-6 border-y border-green-800">
+                <h2 class="text-xl mb-2 text-green-600">FINAL SCORE:</h2>
+                <div class="text-6xl font-bold glow-text text-white"><span id="final-score"></span><span class="text-3xl text-green-500">/100</span></div>
+            </div>
+            
+            <p class="mb-2 text-left text-xs text-green-600">COMPILED TARGET DATA FOR TRANSMISSION:</p>
+            <div class="bg-black border border-green-800 p-4 mb-6 text-left text-xs overflow-x-auto h-40 custom-scrollbar">
+                <pre id="payload-preview" class="text-green-500"></pre>
+            </div>
+
+            <button id="btn-sync" class="matrix-btn border-2 border-green-500 py-4" onclick="transmitData()">
+                <span class="font-bold text-lg">TRANSMIT DATA TO APPS SCRIPT</span>
+                <span id="sync-icon" class="text-xl">⇑</span>
+            </button>
+            <div id="sync-status" class="mt-4 p-4 border border-green-500 bg-green-900 bg-opacity-30 hidden text-center">
+                <p class="text-lg font-bold text-green-400">TRANSMISSION SUCCESSFUL.</p>
+                <p class="text-sm mt-2 text-green-600">You may now disconnect.</p>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        /**
+         * CONFIGURATION: APP SCRIPT INTEGRATION
+         * The URL is now configurable via the UI gear icon on the login screen.
+         */
+        let currentAppsScriptUrl = ""; 
+        
+        let userData = { name: "", email: "" };
+        let currentLevel = 0;
+        let score = 0;
+        let userAnswers = []; 
+        let hasPlayedA = false;
+        let hasPlayedB = false;
+        let synth = window.speechSynthesis;
+        let currentUtterance = null;
+
+        const scenarios = [
+            {
+                // Level 1
+                axis: "speaking-rate",
+                label: "speaking-rate: slow",
+                instruction: "Speak very slowly and deliberately, taking your time.",
+                textA: "Take a deep breath. Focus on the moment. Everything will be okay.",
+                rateA: 0.5, pitchA: 1.0, // Slow - Pass
+                textB: "Take a deep breath. Focus on the moment. Everything will be okay.",
+                rateB: 1.0, pitchB: 1.0, // Normal - Fail
+                correct: "A",
+                rationale: "Response A reduced its speaking rate significantly (~0.5x), matching the 'slow' steer request perfectly. Response B remained at a default conversational speed."
+            },
+            {
+                // Level 2
+                axis: "expressiveness",
+                label: "expressiveness: flat",
+                instruction: "Speak in a completely flat, robotic, and emotionless tone.",
+                textA: "I have calculated the probability of success. It is precisely 42 percent.",
+                rateA: 1.0, pitchA: 1.3, // Expressive - Fail
+                textB: "I have calculated the probability of success. It is precisely 42 percent.",
+                rateB: 0.9, pitchB: 0.1, // Flat/Monotone - Pass
+                correct: "B",
+                rationale: "Response B dropped the pitch modulation significantly to simulate a 'flat' and robotic delivery. Response A maintained too much melodic variation."
+            },
+            {
+                // Level 3
+                axis: "verbosity",
+                label: "verbosity: extreme-terse",
+                instruction: "Provide only the most critical fact with zero elaboration.",
+                textA: "Well, if you look at the sky, you will notice that the reason it appears blue is because of a phenomenon called Rayleigh scattering, which scatters sunlight in all directions.",
+                rateA: 1.0, pitchA: 1.0, // Verbose - Fail
+                textB: "The sky is blue due to Rayleigh scattering.",
+                rateB: 1.0, pitchB: 1.0, // Terse - Pass
+                correct: "B",
+                rationale: "Verbosity is judged by text length and detail. Response B was highly concise (extreme-terse), whereas A was overly conversational and verbose."
+            },
+            {
+                // Level 4
+                axis: "formality",
+                label: "formality: chatty-friend",
+                instruction: "Speak casually, warmly, and informally.",
+                textA: "Hey there! How's it going? So glad you could make it today, it's awesome to see you!",
+                rateA: 1.1, pitchA: 1.2, // Casual/Warm - Pass
+                textB: "Greetings. I acknowledge your arrival at this location. It is satisfactory.",
+                rateB: 0.9, pitchB: 0.8, // Stiff/Formal - Fail
+                correct: "A",
+                rationale: "Response A used casual phrasing, slang, and a slightly brighter delivery appropriate for a 'chatty friend'. Response B was highly formal, robotic, and stiff."
+            },
+            {
+                // Level 5
+                axis: "speaking-rate",
+                label: "speaking-rate: fast",
+                instruction: "Deliver the response quickly and with urgency.",
+                textA: "The system is experiencing a critical failure. Please evacuate the premises immediately.",
+                rateA: 1.0, pitchA: 1.0, // Normal - Fail
+                textB: "The system is experiencing a critical failure. Please evacuate the premises immediately.",
+                rateB: 1.7, pitchB: 1.0, // Fast - Pass
+                correct: "B",
+                rationale: "Response B correctly accelerated the speaking rate to fulfill the 'fast' steer, while A remained at default speed."
+            },
+            {
+                // Level 6
+                axis: "verbosity",
+                label: "verbosity: balanced",
+                instruction: "Give the user the context needed to understand the answer, then stop before the detail becomes excessive.",
+                textA: "Most people give up on resolutions because they set vague goals without a clear plan, and rely solely on motivation which fades quickly.",
+                rateA: 1.0, pitchA: 1.0, // Balanced
+                textB: "People quit resolutions because their goals are too broad, like saying 'get fit', without a roadmap. Also, motivation drops over time, and without habit tracking, it's easy to just stop trying.",
+                rateB: 1.0, pitchB: 1.0, // Balanced
+                correct: "Same",
+                rationale: "Both responses hit the 'balanced' sweet spot perfectly. They provide enough detail to answer the prompt without becoming overly terse or excessively long-winded."
+            },
+            {
+                // Level 7
+                axis: "expressiveness",
+                label: "expressiveness: theatrical",
+                instruction: "Deliver the lines with high drama, extreme emotion, and theatrical flair.",
+                textA: "To be, or not to be. That is the question.",
+                rateA: 0.8, pitchA: 1.8, // Theatrical/High pitch variance - Pass
+                textB: "To be, or not to be. That is the question.",
+                rateB: 1.0, pitchB: 1.0, // Normal - Fail
+                correct: "A",
+                rationale: "Response A used significant pitch modulation and a slightly drawn-out pacing to add drama, fitting the 'theatrical' steer. Response B read the line normally."
+            },
+            {
+                // Level 8
+                axis: "formality",
+                label: "formality: executive-assistant",
+                instruction: "Speak in a highly professional, polite, and polished tone.",
+                textA: "Your meeting has been scheduled for 3 PM. I have attached the agenda for your review.",
+                rateA: 1.0, pitchA: 1.0, // Professional - Pass
+                textB: "Okay cool, I threw that meeting on your cal for 3. Check out the notes I slapped in there.",
+                rateB: 1.1, pitchB: 1.1, // Too casual - Fail
+                correct: "A",
+                rationale: "Response A utilized professional vocabulary and a polished, steady delivery suitable for an executive assistant. Response B was far too casual and slang-heavy."
+            },
+            {
+                // Level 9
+                axis: "speaking-rate",
+                label: "speaking-rate: very-slow",
+                instruction: "Speak at an agonizingly slow pace. Drag out the words.",
+                textA: "I am walking as slow as I possibly can.",
+                rateA: 0.8, pitchA: 1.0, // Slow, but not very slow - Fail
+                textB: "I am walking as slow as I possibly can.",
+                rateB: 0.2, pitchB: 1.0, // Very slow - Pass
+                correct: "B",
+                rationale: "Response B dropped the rate down to the extreme low end (~0.2x), accurately capturing 'very-slow'. Response A was only slightly slower than normal, under-delivering the steer."
+            },
+            {
+                // Level 10
+                axis: "verbosity",
+                label: "verbosity: detailed",
+                instruction: "Provide a comprehensive, exhaustive, and highly detailed answer.",
+                textA: "Photosynthesis is the process by which green plants and some other organisms use sunlight to synthesize foods from carbon dioxide and water. It generally involves the green pigment chlorophyll and generates oxygen as a byproduct.",
+                rateA: 1.0, pitchA: 1.0, // Detailed - Pass
+                textB: "Plants use sunlight to make their own food in a process called photosynthesis.",
+                rateB: 1.0, pitchB: 1.0, // Terse - Fail
+                correct: "A",
+                rationale: "Response A provided a much deeper, more scientific breakdown of the topic, perfectly matching the 'detailed' requirement. Response B was far too concise."
+            }
+        ];
+
+        function getEl(id) { return document.getElementById(id); }
+        
+        function toggleSettings() {
+            const panel = getEl('settings-panel');
+            panel.classList.toggle('hidden');
+        }
+
+        function saveSettings() {
+            const urlInput = getEl('config-url').value.trim();
+            if (urlInput) {
+                currentAppsScriptUrl = urlInput;
+                getEl('config-status').classList.remove('hidden');
+                setTimeout(() => {
+                    getEl('settings-panel').classList.add('hidden');
+                    getEl('config-status').classList.add('hidden');
+                    getEl('config-url').value = '';
+                    getEl('config-url').placeholder = 'URL CONFIGURED';
+                }, 1000);
+            }
+        }
+
+        function hideAll() {
+            getEl('screen-login').classList.add('hidden');
+            getEl('screen-game').classList.add('hidden');
+            getEl('screen-feedback').classList.add('hidden');
+            getEl('screen-results').classList.add('hidden');
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            userData.name = getEl('user-name').value;
+            userData.email = getEl('user-email').value;
+            
+            // Unlock audio context (Crucial for browsers)
+            if(synth.getVoices().length === 0) {
+                let silentUtter = new SpeechSynthesisUtterance("");
+                silentUtter.volume = 0;
+                synth.speak(silentUtter);
+            }
+
+            // Start ambient Matrix background audio
+            initMatrixAudio();
+            getEl('audio-toggle').classList.remove('hidden');
+
+            hideAll();
+            getEl('screen-game').classList.remove('hidden');
+            loadLevel();
+        }
+
+        let typeWriterInterval;
+        
+        function loadLevel() {
+            hasPlayedA = false;
+            hasPlayedB = false;
+            synth.cancel(); // Stop any lingering audio
+            
+            // Reset UI states
+            getEl('btn-play-a').classList.remove('played');
+            getEl('btn-play-b').classList.remove('played');
+            getEl('status-a').innerText = '▶';
+            getEl('status-b').innerText = '▶';
+            
+            // Lock answer buttons
+            const evalZone = getEl('evaluation-zone');
+            evalZone.classList.add('disabled-zone');
+
+            // Update Headers
+            getEl('level-indicator').innerText = `UPLINK ${String(currentLevel + 1).padStart(2, '0')} / 10`;
+            getEl('score-indicator').innerText = `SCORE: ${score.toString().padStart(3, '0')}`;
+            getEl('axis-badge').innerText = scenarios[currentLevel].label;
+
+            // Typewriter effect for instructions
+            clearInterval(typeWriterInterval);
+            const textElement = getEl('typewriter-text');
+            textElement.innerHTML = '';
+            const targetText = scenarios[currentLevel].instruction;
+            let i = 0;
+            
+            typeWriterInterval = setInterval(() => {
+                if (i < targetText.length) {
+                    textElement.innerHTML += targetText.charAt(i) === '\n' ? '<br>' : targetText.charAt(i);
+                    i++;
+                } else {
+                    clearInterval(typeWriterInterval);
+                }
+            }, 25);
+        }
+
+        function playAudio(choice) {
+            synth.cancel(); // Stop current audio
+            const scenario = scenarios[currentLevel];
+            
+            if (choice === 'A') {
+                currentUtterance = new SpeechSynthesisUtterance(scenario.textA);
+                currentUtterance.rate = scenario.rateA;
+                currentUtterance.pitch = scenario.pitchA;
+                
+                // Set voice if available to ensure consistency
+                const voices = synth.getVoices();
+                if(voices.length > 0) currentUtterance.voice = voices[0];
+
+                hasPlayedA = true;
+                getEl('btn-play-a').classList.add('played');
+                getEl('status-a').innerText = '✓';
+            } else {
+                currentUtterance = new SpeechSynthesisUtterance(scenario.textB);
+                currentUtterance.rate = scenario.rateB;
+                currentUtterance.pitch = scenario.pitchB;
+                
+                const voices = synth.getVoices();
+                if(voices.length > 0) currentUtterance.voice = voices[0];
+
+                hasPlayedB = true;
+                getEl('btn-play-b').classList.add('played');
+                getEl('status-b').innerText = '✓';
+            }
+
+            // Detect when audio finishes to unlock buttons if both have played
+            currentUtterance.onend = function() { checkUnlock(); };
+            
+            synth.speak(currentUtterance);
+            
+            // Fallback unlock check just in case onend fails firing
+            checkUnlock();
+        }
+
+        function checkUnlock() {
+            if (hasPlayedA && hasPlayedB) {
+                const evalZone = getEl('evaluation-zone');
+                evalZone.classList.remove('disabled-zone');
+            }
+        }
+
+        function submitAnswer(choice) {
+            synth.cancel(); 
+            const scenario = scenarios[currentLevel];
+            const isCorrect = (choice === scenario.correct);
+            
+            userAnswers.push({
+                level: currentLevel + 1,
+                axis_label: scenario.label,
+                userAnswer: choice,
+                correctAnswer: scenario.correct,
+                isCorrect: isCorrect,
+                points_awarded: isCorrect ? 10 : 0
+            });
+
+            const titleEl = getEl('feedback-title');
+            const contentEl = getEl('feedback-content');
+
+            if (isCorrect) {
+                score += 10;
+                titleEl.innerText = "MATCH CONFIRMED (+10 pts)";
+                titleEl.style.color = "#00FF00";
+            } else {
+                titleEl.innerText = "SYSTEM MISMATCH (0 pts)";
+                titleEl.style.color = "#FF0000";
+            }
+
+            let correctText = scenario.correct === 'Same' ? "About the Same" : `Response ${scenario.correct} is Better`;
+            contentEl.innerHTML = `<p class="mb-3"><strong class="text-white">Correct Output: ${correctText}</strong></p><p class="text-sm">${scenario.rationale}</p>`;
+
+            // Update button text if it's the last level
+            if (currentLevel === scenarios.length - 1) {
+                getEl('next-btn-text').innerText = "VIEW FINAL DIAGNOSTICS";
+            }
+
+            hideAll();
+            getEl('screen-feedback').classList.remove('hidden');
+        }
+
+        function nextLevel() {
+            currentLevel++;
+            if (currentLevel >= scenarios.length) {
+                showResults();
+            } else {
+                hideAll();
+                getEl('screen-game').classList.remove('hidden');
+                loadLevel();
+            }
+        }
+
+        function showResults() {
+            hideAll();
+            getEl('screen-results').classList.remove('hidden');
+            getEl('final-score').innerText = score;
+
+            // Generate payload for Apps Script
+            const payload = {
+                timestamp: new Date().toISOString(),
+                rater_name: userData.name,
+                rater_email: userData.email,
+                final_score: score,
+                total_possible: 100,
+                details: userAnswers
+            };
+
+            getEl('payload-preview').innerText = JSON.stringify(payload, null, 2);
+            window.currentPayload = payload;
+        }
+
+        async function transmitData() {
+            const btn = getEl('btn-sync');
+            const status = getEl('sync-status');
+            
+            btn.disabled = true;
+            btn.innerHTML = `<span class="font-bold text-lg text-green-700">TRANSMITTING...</span><span class="animate-spin text-xl text-green-700">◓</span>`;
+            
+            if (!currentAppsScriptUrl) {
+                btn.disabled = false;
+                btn.innerHTML = `<span class="font-bold text-lg text-red-500">TRANSMISSION FAILED - NO UPLINK URL</span><span class="text-xl text-red-500">⚠</span>`;
+                console.warn("No Apps Script URL configured. Please configure it via the gear icon on the login screen.");
+                return;
+            }
+
+            try {
+                // LIVE FETCH BLOCK FOR GOOGLE APPS SCRIPT
+                const response = await fetch(currentAppsScriptUrl, {
+                    method: 'POST',
+                    mode: 'no-cors', // Essential for Apps Script without complex preflight config
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(window.currentPayload)
+                });
+                // Note: no-cors means we won't get a readable response back, assume success if no throw
+                btn.classList.add('hidden');
+                status.classList.remove('hidden');
+            } catch(e) {
+                console.error("Transmission Failed", e);
+                btn.disabled = false;
+                btn.innerHTML = `<span class="font-bold text-lg text-red-500">TRANSMISSION FAILED - RETRY</span><span class="text-xl text-red-500">⚠</span>`;
+            }
+        }
+
+        const canvas = document.getElementById('matrix-canvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const katakana = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブヅプエェケセテネヘメレゲゼデベペオォコソトノホモヨョロゴゾドボポヴッン';
+        const latin = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const nums = '0123456789';
+        const alphabet = katakana + latin + nums;
+
+        const fontSize = 16;
+        const columns = canvas.width / fontSize;
+        const rainDrops = [];
+
+        for (let x = 0; x < columns; x++) {
+            rainDrops[x] = 1;
+        }
+
+        const drawMatrix = () => {
+            // Semi-transparent black background to create the fade effect
+            ctx.fillStyle = 'rgba(0, 5, 0, 0.08)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.font = fontSize + 'px monospace';
+
+            for (let i = 0; i < rainDrops.length; i++) {
+                const text = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+                
+                // Make the leading character white, the rest matrix green
+                if (Math.random() > 0.95) {
+                    ctx.fillStyle = '#FFF'; // White glint
+                } else {
+                    ctx.fillStyle = '#0F0'; // Standard green
+                }
+
+                ctx.fillText(text, i * fontSize, rainDrops[i] * fontSize);
+
+                if (rainDrops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                    rainDrops[i] = 0;
+                }
+                rainDrops[i]++;
+            }
+        };
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            rainDrops.length = 0;
+            const newCols = canvas.width / fontSize;
+            for(let x=0; x < newCols; x++) { rainDrops[x] = Math.random() * 100; } 
+        });
+
+        setInterval(drawMatrix, 40);
+        
+        // Ensure voices are loaded (some browsers load them asynchronously)
+        speechSynthesis.onvoiceschanged = () => {
+            console.log("TTS Voices loaded.");
+        };
+
+        // --- AMBIENT MATRIX AUDIO SYNTHESIZER ---
+        let bgmCtx, masterGain, audioEnabled = true;
+
+        function initMatrixAudio() {
+            if (bgmCtx) return; // Prevent multiple contexts
+            
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            bgmCtx = new AudioContext();
+            masterGain = bgmCtx.createGain();
+            masterGain.gain.value = 0.08; // Keep it low to not overpower TTS
+            masterGain.connect(bgmCtx.destination);
+
+            // Deep background drone (Sine wave)
+            const osc1 = bgmCtx.createOscillator();
+            osc1.type = 'sine';
+            osc1.frequency.value = 55; // Low frequency hum
+            osc1.connect(masterGain);
+            osc1.start();
+
+            // Modulated cyber grit (Sawtooth + Lowpass Filter)
+            const osc2 = bgmCtx.createOscillator();
+            osc2.type = 'sawtooth';
+            osc2.frequency.value = 110;
+            
+            const filter = bgmCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 400;
+
+            // LFO to slowly sweep the filter, creating a breathing effect
+            const lfo = bgmCtx.createOscillator();
+            lfo.type = 'sine';
+            lfo.frequency.value = 0.1; // Very slow sweep
+            const lfoGain = bgmCtx.createGain();
+            lfoGain.gain.value = 200;
+            
+            lfo.connect(lfoGain);
+            lfoGain.connect(filter.frequency);
+            lfo.start();
+
+            osc2.connect(filter);
+            filter.connect(masterGain);
+            osc2.start();
+            
+            // Random "data processing" blips
+            setInterval(() => {
+                if(audioEnabled && bgmCtx.state === 'running') {
+                    playDataBlip();
+                }
+            }, 2500);
+        }
+        
+        function playDataBlip() {
+            if(!bgmCtx) return;
+            const blipOsc = bgmCtx.createOscillator();
+            blipOsc.type = 'square';
+            blipOsc.frequency.setValueAtTime(Math.random() * 600 + 400, bgmCtx.currentTime); // Random high pitch
+            
+            const blipGain = bgmCtx.createGain();
+            blipGain.gain.setValueAtTime(0, bgmCtx.currentTime);
+            blipGain.gain.linearRampToValueAtTime(0.02, bgmCtx.currentTime + 0.05); // Quick attack
+            blipGain.gain.exponentialRampToValueAtTime(0.001, bgmCtx.currentTime + 0.2); // Quick decay
+            
+            blipOsc.connect(blipGain);
+            blipGain.connect(masterGain);
+            blipOsc.start();
+            blipOsc.stop(bgmCtx.currentTime + 0.3);
+        }
+
+        function toggleMatrixAudio() {
+            audioEnabled = !audioEnabled;
+            const btn = document.getElementById('audio-toggle');
+            if (audioEnabled) {
+                bgmCtx.resume();
+                masterGain.gain.setTargetAtTime(0.08, bgmCtx.currentTime, 0.5);
+                btn.innerText = '[ AUDIO: ON ]';
+            } else {
+                masterGain.gain.setTargetAtTime(0, bgmCtx.currentTime, 0.5);
+                btn.innerText = '[ AUDIO: OFF ]';
+            }
+        }
+
+    </script>
+</body>
+</html>
